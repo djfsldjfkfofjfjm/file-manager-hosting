@@ -71,6 +71,7 @@ export default function LoginPage() {
                   onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   placeholder="admin"
+                  autoComplete="username"
                   required
                   disabled={isLoading}
                 />
@@ -91,6 +92,7 @@ export default function LoginPage() {
                   onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                   disabled={isLoading}
                 />
