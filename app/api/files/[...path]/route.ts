@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     const buffer = await getFile(filename);
 
     // Return file with proper headers
-    return new NextResponse(buffer, {
+    return new NextResponse(buffer as unknown as BodyInit, {
       headers: {
         'Content-Type': fileRecord.mimeType,
         'Content-Length': buffer.length.toString(),
