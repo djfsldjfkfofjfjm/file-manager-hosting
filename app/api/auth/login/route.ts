@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
     const isValidPassword = await verifyPassword(password, user.password);
     
     if (!isValidPassword) {
-      // Check if it's the default password for first login
-      if (password === ADMIN_PASSWORD && user.password === await hashPassword(ADMIN_PASSWORD)) {
-        // Allow login with default password
+      // Check if it's the default password
+      if (password === ADMIN_PASSWORD) {
+        // Allow login with configured password
       } else {
         return NextResponse.json(
           { error: 'Invalid credentials' },
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
