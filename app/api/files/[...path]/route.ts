@@ -43,24 +43,30 @@ export async function GET(request: NextRequest, { params }: Params) {
       }, { status: 404 });
     }
 
-    // Get the file data as ArrayBuffer
-    const arrayBuffer = await response.arrayBuffer();
+    console.log('Successfully started streaming file');
     
-    console.log('Successfully fetched file, size:', arrayBuffer.byteLength);
-    
-    // Return file with proper headers
     // Handle UTF-8 filenames properly in Content-Disposition
     const asciiName = fileRecord.originalName.replace(/[^\x00-\x7F]/g, '_');
     const utf8Name = encodeURIComponent(fileRecord.originalName);
     
-    return new NextResponse(arrayBuffer, {
-      headers: {
-        'Content-Type': fileRecord.mimeType,
-        'Content-Length': fileRecord.size.toString(),
-        'Content-Disposition': `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
-        'Cache-Control': 'public, max-age=31536000',
-      },
+    // Stream the response for large files
+    const headers = new Headers({
+      'Content-Type': fileRecord.mimeType,
+      'Content-Length': fileRecord.size.toString(),
+      'Content-Disposition': `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+      'Cache-Control': 'public, max-age=31536000',
     });
+
+    // For large files, stream the response instead of loading into memory
+    if (fileRecord.size > 10 * 1024 * 1024) { // Files larger than 10MB
+      // Stream the file
+      return new NextResponse(response.body, { headers });
+    } else {
+      // Small files can be loaded into memory
+      const arrayBuffer = await response.arrayBuffer();
+      console.log('Successfully fetched file, size:', arrayBuffer.byteLength);
+      return new NextResponse(arrayBuffer, { headers });
+    }
   } catch (error) {
     console.error('Error serving file:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

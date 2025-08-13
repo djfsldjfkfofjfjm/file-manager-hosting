@@ -5,6 +5,7 @@ import { uploadToSupabase } from '@/lib/storage/supabase-storage';
 
 export const maxDuration = 60; // Увеличиваем таймаут до 60 секунд
 
+// Fallback API для маленьких файлов если прямая загрузка не работает
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -21,10 +22,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File and projectId are required' }, { status: 400 });
     }
 
-    // Check file size (50MB limit)
-    const MAX_SIZE = 50 * 1024 * 1024;
+    // Check file size (10MB limit for server upload)
+    const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'File size exceeds 50MB limit' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Server upload limited to 10MB. Please use direct upload for larger files.' 
+      }, { status: 400 });
     }
 
     // Verify project ownership

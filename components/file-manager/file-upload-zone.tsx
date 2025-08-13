@@ -6,6 +6,7 @@ import { X, Upload, FileText, Image as ImageIcon, CheckCircle, AlertCircle } fro
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabaseClient } from '@/lib/storage/supabase-client';
 
 interface FileUploadZoneProps {
   projectId: string;
@@ -52,7 +53,7 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
       'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'],
       'audio/*': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma'],
     },
-    maxSize: 50 * 1024 * 1024, // 50MB
+    maxSize: 500 * 1024 * 1024, // 500MB
   });
 
   const uploadFiles = async () => {
@@ -66,41 +67,132 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
         idx === i ? { ...f, status: 'uploading', progress: 0 } : f
       ));
 
-      const formData = new FormData();
-      formData.append('file', uploadFile.file);
-      formData.append('projectId', projectId);
-      if (folderId) formData.append('folderId', folderId);
-
       try {
-        const response = await fetch('/api/files/upload', {
+        // 1. Получаем разрешение на загрузку от сервера
+        const prepareResponse = await fetch('/api/files/prepare-upload', {
           method: 'POST',
-          body: formData,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            projectId,
+            fileName: uploadFile.file.name,
+            fileSize: uploadFile.file.size,
+            mimeType: uploadFile.file.type
+          })
         });
 
-        if (response.ok) {
-          setFiles(prev => prev.map((f, idx) => 
-            idx === i ? { ...f, status: 'success', progress: 100 } : f
-          ));
-        } else {
-          const error = await response.text();
-          setFiles(prev => prev.map((f, idx) => 
-            idx === i ? { ...f, status: 'error', error } : f
-          ));
+        if (!prepareResponse.ok) {
+          const error = await prepareResponse.json();
+          throw new Error(error.error || 'Failed to prepare upload');
         }
-      } catch (error) {
+
+        const { filename, maxSize } = await prepareResponse.json();
+
+        // Проверяем размер файла
+        if (uploadFile.file.size > maxSize) {
+          throw new Error(`File size exceeds ${formatBytes(maxSize)} limit`);
+        }
+
+        // 2. Загружаем файл напрямую в Supabase из браузера
+        const updateProgress = (progress: number) => {
+          setFiles(prev => prev.map((f, idx) => 
+            idx === i ? { ...f, progress } : f
+          ));
+        };
+
+        // Для больших файлов (>6MB) используем чанковую загрузку
+        const CHUNK_SIZE = 6 * 1024 * 1024; // 6MB chunks
+        let uploadedUrl: string;
+        
+        if (uploadFile.file.size > CHUNK_SIZE) {
+          // Большой файл - загружаем по частям
+          const totalChunks = Math.ceil(uploadFile.file.size / CHUNK_SIZE);
+          let uploadedChunks = 0;
+
+          for (let start = 0; start < uploadFile.file.size; start += CHUNK_SIZE) {
+            const end = Math.min(start + CHUNK_SIZE, uploadFile.file.size);
+            const chunk = uploadFile.file.slice(start, end);
+            
+            const { data, error } = await supabaseClient.storage
+              .from('files')
+              .upload(filename, chunk, {
+                cacheControl: '3600',
+                upsert: start > 0, // Добавляем к существующему файлу
+                contentRange: `bytes ${start}-${end - 1}/${uploadFile.file.size}`
+              });
+
+            if (error) throw error;
+            
+            uploadedChunks++;
+            updateProgress((uploadedChunks / totalChunks) * 100);
+          }
+        } else {
+          // Маленький файл - загружаем целиком
+          const { data, error } = await supabaseClient.storage
+            .from('files')
+            .upload(filename, uploadFile.file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (error) throw error;
+          updateProgress(100);
+        }
+
+        // Получаем публичный URL из Supabase
+        const { data: { publicUrl } } = supabaseClient.storage
+          .from('files')
+          .getPublicUrl(filename);
+
+        // 3. Подтверждаем загрузку на сервере и сохраняем в БД
+        const confirmResponse = await fetch('/api/files/confirm-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            filename,
+            originalName: uploadFile.file.name,
+            mimeType: uploadFile.file.type,
+            size: uploadFile.file.size,
+            projectId,
+            folderId,
+            supabaseUrl: publicUrl
+          })
+        });
+
+        if (!confirmResponse.ok) {
+          const error = await confirmResponse.json();
+          throw new Error(error.error || 'Failed to confirm upload');
+        }
+
+        const fileRecord = await confirmResponse.json();
+        console.log('File uploaded successfully:', fileRecord);
+
         setFiles(prev => prev.map((f, idx) => 
-          idx === i ? { ...f, status: 'error', error: 'Ошибка загрузки' } : f
+          idx === i ? { ...f, status: 'success', progress: 100 } : f
+        ));
+      } catch (error) {
+        console.error('Upload error:', error);
+        setFiles(prev => prev.map((f, idx) => 
+          idx === i ? { 
+            ...f, 
+            status: 'error', 
+            error: error instanceof Error ? error.message : 'Upload failed' 
+          } : f
         ));
       }
     }
 
     setIsUploading(false);
-    const hasSuccess = files.some(f => f.status === 'success');
-    if (hasSuccess) {
-      toast.success('Файлы успешно загружены!');
+    
+    const successCount = files.filter(f => f.status === 'success').length;
+    if (successCount > 0) {
+      toast.success(`Загружено файлов: ${successCount}`);
       setTimeout(() => {
         onUploadComplete();
-      }, 1000);
+      }, 1500);
     }
   };
 
@@ -108,29 +200,26 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) return <ImageIcon className="w-8 h-8 text-blue-500" />;
-    return <FileText className="w-8 h-8 text-gray-500" />;
+  const getFileIcon = (file: File) => {
+    if (file.type.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
+    return <FileText className="w-4 h-4" />;
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Загрузка файлов
-          </h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Загрузка файлов</h3>
           <Button
             size="icon"
             variant="ghost"
             onClick={onClose}
-            disabled={isUploading}
           >
             <X className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-auto p-4">
+        <div className="p-4 flex-1 overflow-y-auto">
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
@@ -141,13 +230,13 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
           >
             <input {...getInputProps()} />
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-700 dark:text-gray-300 mb-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               {isDragActive
                 ? 'Отпустите файлы здесь'
                 : 'Перетащите файлы сюда или нажмите для выбора'}
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Максимальный размер: 50MB | Поддерживаются все популярные форматы
+            <p className="text-xs text-gray-500">
+              Максимальный размер: 500MB. Поддерживаются все популярные форматы.
             </p>
           </div>
 
@@ -158,73 +247,59 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
                   key={index}
                   className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
                 >
-                  {uploadFile.file.type.startsWith('image/') ? (
-                    <img
-                      src={URL.createObjectURL(uploadFile.file)}
-                      alt={uploadFile.file.name}
-                      className="w-12 h-12 object-cover rounded"
-                    />
+                  {uploadFile.status === 'success' ? (
+                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  ) : uploadFile.status === 'error' ? (
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
                   ) : (
-                    getFileIcon(uploadFile.file.type)
+                    getFileIcon(uploadFile.file)
                   )}
                   
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <p className="text-sm font-medium truncate">
                       {uploadFile.file.name}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500">
                       {formatBytes(uploadFile.file.size)}
+                      {uploadFile.error && (
+                        <span className="text-red-500 ml-2">{uploadFile.error}</span>
+                      )}
                     </p>
                     {uploadFile.status === 'uploading' && (
-                      <div className="mt-1 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                      <div className="mt-1 w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
                         <div
-                          className="h-full bg-blue-500 transition-all"
+                          className="bg-blue-500 h-1.5 rounded-full transition-all"
                           style={{ width: `${uploadFile.progress}%` }}
                         />
                       </div>
                     )}
-                    {uploadFile.error && (
-                      <p className="text-xs text-red-500 mt-1">{uploadFile.error}</p>
-                    )}
                   </div>
 
-                  <div>
-                    {uploadFile.status === 'pending' && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeFile(index)}
-                        disabled={isUploading}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
-                    {uploadFile.status === 'success' && (
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    )}
-                    {uploadFile.status === 'error' && (
-                      <AlertCircle className="w-5 h-5 text-red-500" />
-                    )}
-                  </div>
+                  {uploadFile.status === 'pending' && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeFile(index)}
+                      className="flex-shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex justify-end space-x-3 p-4 border-t border-gray-200 dark:border-gray-700">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isUploading}
-          >
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
+          <Button variant="outline" onClick={onClose}>
             Отмена
           </Button>
           <Button
             onClick={uploadFiles}
             disabled={files.length === 0 || isUploading}
           >
-            {isUploading ? 'Загрузка...' : `Загрузить (${files.length})`}
+            {isUploading ? 'Загрузка...' : `Загрузить (${files.filter(f => f.status === 'pending').length})`}
           </Button>
         </div>
       </div>
