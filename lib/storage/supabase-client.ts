@@ -1,3 +1,5 @@
+'use client';
+
 import { createClient } from '@supabase/supabase-js';
 
 // Публичный клиент для использования в браузере

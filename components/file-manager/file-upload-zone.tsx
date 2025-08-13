@@ -6,7 +6,7 @@ import { X, Upload, FileText, Image as ImageIcon, CheckCircle, AlertCircle } fro
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/utils';
 import { toast } from 'sonner';
-import { supabaseClient } from '@/lib/storage/supabase-client';
+import { useSupabase } from '@/hooks/use-supabase';
 
 interface FileUploadZoneProps {
   projectId: string;
@@ -25,6 +25,7 @@ interface UploadFile {
 export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete }: FileUploadZoneProps) {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const supabaseClient = useSupabase();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles = acceptedFiles.map(file => ({
