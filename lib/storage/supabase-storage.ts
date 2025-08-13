@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://ijntsheoqmuqpajoufag.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqbnRzaGVvcW11cXBham91ZmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2Mzg2MTQsImV4cCI6MjA3MDIxNDYxNH0.kWuePhueZWMB-I0tIb8zN4uNhtQnKiwVBQYG9XqQy6I';
+// Use service role key for server-side operations
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqbnRzaGVvcW11cXBham91ZmFnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDYzODYxNCwiZXhwIjoyMDcwMjE0NjE0fQ.Ny0ba9L725BaWzpNNdJXwCVk8kpEYzc301zmvKlz6Tc';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function uploadToSupabase(file: File, projectId: string): Promise<{ url: string; filename: string }> {
   // Создаем уникальное имя файла
