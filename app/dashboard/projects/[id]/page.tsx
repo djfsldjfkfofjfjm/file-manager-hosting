@@ -255,7 +255,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     <div className="aspect-square relative bg-gray-50 dark:bg-gray-900">
                       {file.mimeType.startsWith('image/') ? (
                         <img
-                          src={file.thumbnailUrl || file.url}
+                          src={`/api/files/${file.filename}`}
                           alt={file.originalName}
                           className="w-full h-full object-cover"
                         />

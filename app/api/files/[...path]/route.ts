@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFile, fileExists } from '@/lib/storage/local';
 import { prisma } from '@/lib/prisma';
 
 interface Params {
@@ -11,12 +10,6 @@ export async function GET(request: NextRequest, { params }: Params) {
     const { path } = await params;
     const filename = path.join('/');
 
-    // Check if file exists
-    const exists = await fileExists(filename);
-    if (!exists) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
-    }
-
     // Get file record from database
     const fileRecord = await prisma.file.findFirst({
       where: { filename }
@@ -26,14 +19,21 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    // Get file buffer
-    const buffer = await getFile(filename);
+    // Fetch file from Supabase Storage
+    const response = await fetch(fileRecord.url);
+    
+    if (!response.ok) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
 
+    // Get the file data as ArrayBuffer
+    const arrayBuffer = await response.arrayBuffer();
+    
     // Return file with proper headers
-    return new NextResponse(buffer as unknown as BodyInit, {
+    return new NextResponse(arrayBuffer, {
       headers: {
         'Content-Type': fileRecord.mimeType,
-        'Content-Length': buffer.length.toString(),
+        'Content-Length': fileRecord.size.toString(),
         'Content-Disposition': `inline; filename="${fileRecord.originalName}"`,
         'Cache-Control': 'public, max-age=31536000',
       },
