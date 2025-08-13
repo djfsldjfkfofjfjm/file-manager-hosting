@@ -101,44 +101,19 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
           ));
         };
 
-        // Для больших файлов (>6MB) используем чанковую загрузку
-        const CHUNK_SIZE = 6 * 1024 * 1024; // 6MB chunks
-        let uploadedUrl: string;
+        // Загружаем файл напрямую в Supabase
+        // Supabase автоматически обрабатывает большие файлы
+        const { error } = await supabaseClient.storage
+          .from('files')
+          .upload(filename, uploadFile.file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) throw error;
         
-        if (uploadFile.file.size > CHUNK_SIZE) {
-          // Большой файл - загружаем по частям
-          const totalChunks = Math.ceil(uploadFile.file.size / CHUNK_SIZE);
-          let uploadedChunks = 0;
-
-          for (let start = 0; start < uploadFile.file.size; start += CHUNK_SIZE) {
-            const end = Math.min(start + CHUNK_SIZE, uploadFile.file.size);
-            const chunk = uploadFile.file.slice(start, end);
-            
-            const { data, error } = await supabaseClient.storage
-              .from('files')
-              .upload(filename, chunk, {
-                cacheControl: '3600',
-                upsert: start > 0, // Добавляем к существующему файлу
-                contentRange: `bytes ${start}-${end - 1}/${uploadFile.file.size}`
-              });
-
-            if (error) throw error;
-            
-            uploadedChunks++;
-            updateProgress((uploadedChunks / totalChunks) * 100);
-          }
-        } else {
-          // Маленький файл - загружаем целиком
-          const { data, error } = await supabaseClient.storage
-            .from('files')
-            .upload(filename, uploadFile.file, {
-              cacheControl: '3600',
-              upsert: false
-            });
-
-          if (error) throw error;
-          updateProgress(100);
-        }
+        // Обновляем прогресс до 100%
+        updateProgress(100);
 
         // Получаем публичный URL из Supabase
         const { data: { publicUrl } } = supabaseClient.storage
