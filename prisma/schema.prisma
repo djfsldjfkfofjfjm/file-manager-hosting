@@ -30,7 +30,7 @@ model Project {
   icon        String?
   isPinned    Boolean  @default(false)
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   folders     Folder[]
   files       File[]
   createdAt   DateTime @default(now())
@@ -44,9 +44,9 @@ model Folder {
   name      String
   path      String
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   parentId  String?
-  parent    Folder?  @relation("FolderToFolder", fields: [parentId], references: [id])
+  parent    Folder?  @relation("FolderToFolder", fields: [parentId], references: [id], onDelete: Cascade)
   children  Folder[] @relation("FolderToFolder")
   files     File[]
   createdAt DateTime @default(now())
@@ -64,11 +64,11 @@ model File {
   url          String
   thumbnailUrl String?
   projectId    String
-  project      Project   @relation(fields: [projectId], references: [id])
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   folderId     String?
-  folder       Folder?   @relation(fields: [folderId], references: [id])
+  folder       Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
   uploadedBy   String
-  user         User      @relation(fields: [uploadedBy], references: [id])
+  user         User      @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
   tags         Tag[]
   isDeleted    Boolean   @default(false)
   deletedAt    DateTime?

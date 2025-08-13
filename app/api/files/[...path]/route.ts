@@ -49,11 +49,15 @@ export async function GET(request: NextRequest, { params }: Params) {
     console.log('Successfully fetched file, size:', arrayBuffer.byteLength);
     
     // Return file with proper headers
+    // Handle UTF-8 filenames properly in Content-Disposition
+    const asciiName = fileRecord.originalName.replace(/[^\x00-\x7F]/g, '_');
+    const utf8Name = encodeURIComponent(fileRecord.originalName);
+    
     return new NextResponse(arrayBuffer, {
       headers: {
         'Content-Type': fileRecord.mimeType,
         'Content-Length': fileRecord.size.toString(),
-        'Content-Disposition': `inline; filename="${fileRecord.originalName}"`,
+        'Content-Disposition': `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
         'Cache-Control': 'public, max-age=31536000',
       },
     });

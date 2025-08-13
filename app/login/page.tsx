@@ -120,14 +120,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              <strong>Тестовые данные:</strong><br />
-              Логин: admin<br />
-              Пароль: secure_password_123
-            </p>
-          </div>
         </div>
       </div>
     </div>

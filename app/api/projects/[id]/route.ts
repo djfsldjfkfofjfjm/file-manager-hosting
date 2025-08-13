@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth/jwt';
+import { deleteFromSupabase } from '@/lib/storage/supabase-storage';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -86,16 +87,36 @@ export async function DELETE(request: NextRequest, { params }: Params) {
 
     const { id } = await params;
 
-    const project = await prisma.project.deleteMany({
+    // Проверяем существование проекта и получаем файлы
+    const project = await prisma.project.findFirst({
       where: {
         id,
         userId: session.userId
+      },
+      include: {
+        files: true
       }
     });
 
-    if (project.count === 0) {
+    if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    // Удаляем файлы из Supabase
+    for (const file of project.files) {
+      try {
+        await deleteFromSupabase(file.filename);
+      } catch (error) {
+        console.error(`Error deleting file from Supabase: ${file.filename}`, error);
+      }
+    }
+
+    // Удаляем проект и связанные записи из базы данных (каскадное удаление)
+    await prisma.project.delete({
+      where: {
+        id
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

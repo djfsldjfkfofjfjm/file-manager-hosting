@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth/jwt';
 import { uploadToSupabase } from '@/lib/storage/supabase-storage';
 
+export const maxDuration = 60; // Увеличиваем таймаут до 60 секунд
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -19,10 +21,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File and projectId are required' }, { status: 400 });
     }
 
-    // Check file size (10MB limit)
-    const MAX_SIZE = 10 * 1024 * 1024;
+    // Check file size (50MB limit)
+    const MAX_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'File size exceeds 10MB limit' }, { status: 400 });
+      return NextResponse.json({ error: 'File size exceeds 50MB limit' }, { status: 400 });
     }
 
     // Verify project ownership

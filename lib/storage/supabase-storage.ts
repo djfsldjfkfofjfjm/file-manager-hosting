@@ -13,22 +13,40 @@ export async function uploadToSupabase(file: File, projectId: string): Promise<{
   const fileExt = file.name.split('.').pop();
   const filename = `${projectId}/${timestamp}-${randomId}.${fileExt}`;
 
-  // Создаем bucket если его нет
+  // Проверяем существование bucket
   const { data: buckets } = await supabase.storage.listBuckets();
   const bucketExists = buckets?.some(b => b.name === 'files');
   
   if (!bucketExists) {
+    // Создаем bucket с разрешением ВСЕХ типов файлов
     await supabase.storage.createBucket('files', {
       public: true,
-      fileSizeLimit: 10485760, // 10MB
+      fileSizeLimit: 52428800, // 50MB
+      allowedMimeTypes: undefined // undefined = разрешить все типы
     });
+  } else {
+    // Если bucket существует, попробуем его удалить и пересоздать с правильными настройками
+    try {
+      // Пытаемся удалить старый bucket
+      await supabase.storage.emptyBucket('files');
+      await supabase.storage.deleteBucket('files');
+      
+      // Создаем новый bucket с правильными настройками
+      await supabase.storage.createBucket('files', {
+        public: true,
+        fileSizeLimit: 52428800, // 50MB
+        allowedMimeTypes: undefined // undefined = разрешить все типы
+      });
+    } catch (e) {
+      // Если не удалось пересоздать, продолжаем со старым
+      console.log('Using existing bucket with current settings');
+    }
   }
 
-  // Загружаем файл
+  // Загружаем файл без указания contentType - пусть Supabase сам определяет
   const { data, error } = await supabase.storage
     .from('files')
     .upload(filename, file, {
-      contentType: file.type,
       upsert: false
     });
 

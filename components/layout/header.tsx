@@ -1,14 +1,13 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { Search, Grid, List, Upload } from 'lucide-react';
+import { Search, Grid, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useView } from '@/contexts/view-context';
 
 export function Header() {
   const pathname = usePathname();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { viewMode, setViewMode, searchQuery, setSearchQuery } = useView();
 
   const getPageTitle = () => {
     if (pathname === '/dashboard') return 'Главная';
@@ -60,11 +59,6 @@ export function Header() {
               <List className="w-4 h-4" />
             </Button>
           </div>
-
-          <Button>
-            <Upload className="w-4 h-4 mr-2" />
-            Загрузить
-          </Button>
         </div>
       </div>
     </header>

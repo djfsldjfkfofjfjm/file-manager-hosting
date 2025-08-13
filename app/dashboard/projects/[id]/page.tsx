@@ -2,23 +2,19 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { toast } from 'sonner';
 import { 
   File, 
   Folder, 
-  MoreVertical, 
-  Download, 
-  Trash2, 
-  Copy, 
-  Move,
-  Eye,
+  Trash2,
   Link as LinkIcon,
-  CheckCircle
+  CheckCircle,
+  Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatBytes, formatDate, getFileIcon } from '@/lib/utils';
 import { FileUploadZone } from '@/components/file-manager/file-upload-zone';
+import { useView } from '@/contexts/view-context';
 
 interface FileItem {
   id: string;
@@ -51,11 +47,17 @@ interface Project {
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { viewMode, searchQuery } = useView();
   const [project, setProject] = useState<Project | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isLoading, setIsLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
+
+  // Фильтруем файлы по поисковому запросу
+  const filteredFiles = project?.files.filter(file => 
+    searchQuery === '' || 
+    file.originalName.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
 
   useEffect(() => {
     fetchProject();
@@ -120,6 +122,62 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     }
   };
 
+  const handleDeleteProject = async () => {
+    const firstConfirm = confirm(`Вы уверены, что хотите удалить проект "${project?.name}"?`);
+    if (!firstConfirm) return;
+
+    const secondConfirm = confirm('⚠️ ВНИМАНИЕ! Это действие необратимо. Все файлы в проекте будут удалены навсегда. Продолжить?');
+    if (!secondConfirm) return;
+
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast.success('Проект успешно удален');
+        router.push('/dashboard');
+      } else {
+        toast.error('Ошибка удаления проекта');
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения');
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (!project) return;
+    
+    if (selectedFiles.size === filteredFiles.length) {
+      // Если все выбраны, снимаем выделение
+      setSelectedFiles(new Set());
+    } else {
+      // Выбираем все файлы
+      const allFileIds = new Set(filteredFiles.map(f => f.id));
+      setSelectedFiles(allFileIds);
+    }
+  };
+
+  const handleCopyAllLinks = () => {
+    if (!project) return;
+    
+    const filesToCopy = selectedFiles.size > 0 
+      ? filteredFiles.filter(f => selectedFiles.has(f.id))
+      : filteredFiles;
+    
+    if (filesToCopy.length === 0) {
+      toast.error('Нет файлов для копирования');
+      return;
+    }
+    
+    const links = filesToCopy.map(file => 
+      `${window.location.origin}/api/files/${file.filename}`
+    ).join('\n');
+    
+    navigator.clipboard.writeText(links);
+    toast.success(`Скопировано ${filesToCopy.length} ссылок!`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -165,13 +223,23 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 )}
               </div>
             </div>
-            <Button onClick={() => setShowUpload(true)}>
-              Загрузить файлы
-            </Button>
+            <div className="flex space-x-2">
+              <Button onClick={() => setShowUpload(true)}>
+                Загрузить файлы
+              </Button>
+              <Button 
+                onClick={handleDeleteProject}
+                variant="destructive"
+                title="Удалить проект"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Удалить проект
+              </Button>
+            </div>
           </div>
         </div>
 
-        {project.files.length === 0 && project.folders.length === 0 ? (
+        {filteredFiles.length === 0 && project.folders.length === 0 && searchQuery === '' ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-12 text-center">
             <File className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -184,8 +252,46 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               Загрузить файлы
             </Button>
           </div>
+        ) : searchQuery && filteredFiles.length === 0 ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+            <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Ничего не найдено
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              По запросу &quot;{searchQuery}&quot; файлы не найдены
+            </p>
+          </div>
         ) : (
           <>
+            {filteredFiles.length > 0 && (
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Button
+                    onClick={handleSelectAll}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    {selectedFiles.size === filteredFiles.length ? 'Снять выделение' : 'Выбрать все'}
+                  </Button>
+                  {selectedFiles.size > 0 && (
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Выбрано: {selectedFiles.size}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  onClick={handleCopyAllLinks}
+                  variant="outline"
+                  size="sm"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Копировать {selectedFiles.size > 0 ? `${selectedFiles.size} ссылок` : 'все ссылки'}
+                </Button>
+              </div>
+            )}
+            
             {project.folders.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -209,7 +315,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                {project.files.map((file) => (
+                {filteredFiles.map((file) => (
                   <div
                     key={file.id}
                     className={`group relative bg-white dark:bg-gray-800 rounded-lg border ${
@@ -297,7 +403,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     </tr>
                   </thead>
                   <tbody>
-                    {project.files.map((file) => (
+                    {filteredFiles.map((file) => (
                       <tr
                         key={file.id}
                         className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${

@@ -6,8 +6,6 @@ import { useState, useEffect } from 'react';
 import { 
   FolderOpen, 
   Plus, 
-  Trash2, 
-  Settings, 
   LogOut,
   ChevronDown,
   ChevronRight,
@@ -67,24 +65,12 @@ export function Sidebar() {
       icon: Home,
       active: pathname === '/dashboard',
     },
-    {
-      href: '/dashboard/trash',
-      label: 'Корзина',
-      icon: Trash2,
-      active: pathname === '/dashboard/trash',
-    },
-    {
-      href: '/dashboard/settings',
-      label: 'Настройки',
-      icon: Settings,
-      active: pathname === '/dashboard/settings',
-    },
   ];
 
   return (
     <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-3">
+        <Link href="/dashboard" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
           <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
             <HardDrive className="w-6 h-6 text-white" />
           </div>
@@ -92,7 +78,7 @@ export function Sidebar() {
             <h2 className="font-bold text-gray-900 dark:text-white">File Manager</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">Управление файлами</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-4">

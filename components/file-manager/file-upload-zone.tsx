@@ -37,14 +37,22 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'],
       'application/pdf': ['.pdf'],
       'application/zip': ['.zip'],
       'application/x-rar-compressed': ['.rar'],
+      'application/x-7z-compressed': ['.7z'],
       'application/msword': ['.doc'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-powerpoint': ['.ppt'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'text/*': ['.txt', '.csv', '.json', '.xml', '.html', '.css', '.js', '.ts', '.jsx', '.tsx', '.md'],
+      'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'],
+      'audio/*': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma'],
     },
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 50 * 1024 * 1024, // 50MB
   });
 
   const uploadFiles = async () => {
@@ -139,7 +147,7 @@ export function FileUploadZone({ projectId, folderId, onClose, onUploadComplete 
                 : 'Перетащите файлы сюда или нажмите для выбора'}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Максимальный размер: 10MB
+              Максимальный размер: 50MB | Поддерживаются все популярные форматы
             </p>
           </div>
 
