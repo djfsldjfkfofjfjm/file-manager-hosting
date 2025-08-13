@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth/jwt';
-import { uploadToBlob } from '@/lib/storage/vercel-blob';
+import { uploadToSupabase } from '@/lib/storage/supabase-storage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Upload to Vercel Blob Storage
-    const { url, filename } = await uploadToBlob(file);
+    // Upload to Supabase Storage
+    const { url, filename } = await uploadToSupabase(file, projectId);
     
     // Generate thumbnail URL for images
     const thumbnailUrl = file.type.startsWith('image/') ? url : null;
